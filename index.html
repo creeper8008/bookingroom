@@ -295,6 +295,22 @@
     .view-band   { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
     .view-member { font-size: 13px; color: var(--gray-400); margin-bottom: 1.25rem; }
 
+    /* ② 削除確認エリア */
+    .delete-hint {
+      font-size: 12px; color: var(--gray-600); line-height: 1.6;
+      background: var(--red-bg); border-radius: var(--r-sm);
+      padding: 8px 12px; margin-bottom: 12px;
+      border-left: 3px solid var(--red-100);
+    }
+    .delete-hint strong { color: var(--red-600); }
+
+    /* ⑤ 週更新サイクル注記 */
+    .week-cycle-note {
+      font-size: 10px; color: var(--gray-300);
+      text-align: right; margin-top: -0.6rem; margin-bottom: 0.8rem;
+      letter-spacing: 0.01em;
+    }
+
     /* ── 時限バンド（曜日カラム内） ── */
     .period-band {
       position: absolute; left: 0; right: 0;
@@ -362,6 +378,7 @@
     <span class="week-notice-icon">👁</span>
     <span>この週は閲覧のみです — 新規予約・削除は<strong>今週のみ</strong>行えます</span>
   </div>
+  <p class="week-cycle-note">※ 週は日曜 0:00 に更新されます</p>
 
   <div class="tl-outer">
     <div class="tl-inner">
@@ -414,6 +431,7 @@
             <option value="3">3限　　13:00 〜 14:30</option>
             <option value="4">4限　　14:40 〜 16:10</option>
             <option value="5">5限　　16:20 〜 17:50</option>
+            <option value="6">授業外　17:50 〜 18:30</option>
           </select>
         </div>
         <div class="form-field">
@@ -425,11 +443,11 @@
           <input type="time" id="endInput" min="09:00" max="19:00" value="10:00" />
         </div>
         <div class="form-field full">
-          <label>バンド名</label>
-          <input type="text" id="bandInput" placeholder="例：Rolling Clones" maxlength="50" autocomplete="off" />
+          <label>バンド名または個人名</label>
+          <input type="text" id="bandInput" placeholder="例：Rolling Clones / 山田太郎" maxlength="50" autocomplete="off" />
         </div>
         <div class="form-field full">
-          <label>担当者名</label>
+          <label>鍵の返却者</label>
           <input type="text" id="memberInput" placeholder="例：山田太郎" maxlength="30" autocomplete="off" />
         </div>
       </div>
@@ -453,6 +471,20 @@
         <button class="btn-del" id="btnDelete">予約を削除</button>
       </div>
     </div>
+    <div id="deleteConfirmArea" style="display:none">
+      <h3>削除の確認</h3>
+      <p class="sub">この操作は取り消せません</p>
+      <p class="delete-hint" id="deleteHint"></p>
+      <div class="form-field" style="margin-bottom:8px;">
+        <label>バンド名または個人名を入力して確定</label>
+        <input type="text" id="deleteBandInput" placeholder="バンド名または個人名を入力..." autocomplete="off" />
+      </div>
+      <p class="err" id="deleteErr"></p>
+      <div class="modal-btns">
+        <button class="btn-sec" id="btnDeleteCancel">戻る</button>
+        <button class="btn-del" id="btnDeleteConfirm">削除する</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -471,17 +503,19 @@ const DAY_LABELS = {mon:'月',tue:'火',wed:'水',thu:'木',fri:'金',sat:'土'}
 let bookings    = {};
 let weekOffset  = 0;
 let activeViewId = null;
+let activeViewBand = null;
 let fbReady     = false;
 
 
 // ── 時限データ（90分授業・5限制・昼休み50分）──
 const PERIODS = [
-  { label:'1限', startTime:'9:00',  endTime:'10:30', color:'#97C459', bg:'rgba(99,153,34,0.08)',  text:'#27500A', muted:'#639922' },
-  { label:'2限', startTime:'10:40', endTime:'12:10', color:'#7CB342', bg:'rgba(99,153,34,0.06)',  text:'#27500A', muted:'#639922' },
-  { label:'昼休み',startTime:'12:10',endTime:'13:00', color:'#F59E0B', bg:'rgba(245,158,11,0.07)', text:'#78350F', muted:'#D97706', isBreak:true },
-  { label:'3限', startTime:'13:00', endTime:'14:30', color:'#34D399', bg:'rgba(52,211,153,0.07)', text:'#065F46', muted:'#059669' },
-  { label:'4限', startTime:'14:40', endTime:'16:10', color:'#60A5FA', bg:'rgba(96,165,250,0.07)', text:'#1E3A8A', muted:'#3B82F6' },
-  { label:'5限', startTime:'16:20', endTime:'17:50', color:'#C084FC', bg:'rgba(192,132,252,0.07)',text:'#4C1D95', muted:'#9333EA' },
+  { label:'1限',   startTime:'9:00',  endTime:'10:30', color:'#97C459', bg:'rgba(99,153,34,0.08)',   text:'#27500A', muted:'#639922' },
+  { label:'2限',   startTime:'10:40', endTime:'12:10', color:'#7CB342', bg:'rgba(99,153,34,0.06)',   text:'#27500A', muted:'#639922' },
+  { label:'昼休み',startTime:'12:10', endTime:'13:00', color:'#F59E0B', bg:'rgba(245,158,11,0.07)',  text:'#78350F', muted:'#D97706', isBreak:true },
+  { label:'3限',   startTime:'13:00', endTime:'14:30', color:'#34D399', bg:'rgba(52,211,153,0.07)',  text:'#065F46', muted:'#059669' },
+  { label:'4限',   startTime:'14:40', endTime:'16:10', color:'#60A5FA', bg:'rgba(96,165,250,0.07)',  text:'#1E3A8A', muted:'#3B82F6' },
+  { label:'5限',   startTime:'16:20', endTime:'17:50', color:'#C084FC', bg:'rgba(192,132,252,0.07)', text:'#4C1D95', muted:'#9333EA' },
+  { label:'授業外',startTime:'17:50', endTime:'18:30', color:'#94A3B8', bg:'rgba(148,163,184,0.06)', text:'#334155', muted:'#64748B' },
 ];
 
 // ── ユーティリティ ───────────────────────────────
@@ -502,7 +536,8 @@ function setStatus(state, text) {
 function getWeekDates(offset) {
   const now=new Date(), dow=now.getDay();
   const monday=new Date(now);
-  monday.setDate(now.getDate()-(dow===0?6:dow-1)+offset*7);
+  // 日曜(0)は翌週月曜の前日ではなく、翌月曜から始まる週として扱う（日曜0:00に週更新）
+  monday.setDate(now.getDate() - (dow === 0 ? -1 : dow - 1) + offset * 7);
   const dates={};
   DAYS.forEach((d,i)=>{ const dt=new Date(monday); dt.setDate(monday.getDate()+i); dates[d]=dt; });
   return dates;
@@ -657,12 +692,12 @@ function openForm(day, startTime, endTime) {
   setTimeout(()=>document.getElementById('bandInput').focus(), 60);
 }
 function openView(b) {
-  activeViewId = b.id;
+  activeViewId   = b.id;
+  activeViewBand = b.band;
   const dt = new Date(b.dateKey+'T00:00:00');
   document.getElementById('viewDateSub').textContent =
     `${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日 (${DAY_LABELS[b.day]})`;
   document.getElementById('viewTime').textContent   = `${b.startTime} 〜 ${b.endTime}`;
-  // 時限を表示
   const periodEl = document.getElementById('viewPeriod');
   if(b.period) {
     periodEl.textContent = b.period;
@@ -671,16 +706,19 @@ function openView(b) {
     periodEl.style.display = 'none';
   }
   document.getElementById('viewBand').textContent   = b.band;
-  document.getElementById('viewMember').textContent = `担当者：${b.member}`;
-  // 今週以外は削除ボタンを非表示
+  document.getElementById('viewMember').textContent = `返却者：${b.member}`;
   document.getElementById('btnDelete').style.display = weekOffset === 0 ? '' : 'none';
-  document.getElementById('formArea').style.display = 'none';
-  document.getElementById('viewArea').style.display = '';
+  document.getElementById('formArea').style.display        = 'none';
+  document.getElementById('viewArea').style.display        = '';
+  document.getElementById('deleteConfirmArea').style.display = 'none';
   document.getElementById('overlay').classList.add('show');
 }
 function closeOverlay() {
   document.getElementById('overlay').classList.remove('show');
-  activeViewId = null;
+  document.getElementById('deleteConfirmArea').style.display = 'none';
+  document.getElementById('viewArea').style.display          = 'none';
+  activeViewId   = null;
+  activeViewBand = null;
 }
 
 // ── 重複チェック ────────────────────────────────
@@ -723,11 +761,11 @@ document.getElementById('btnBook').addEventListener('click', async ()=>{
   if(!start||!end)          { showErr('開始・終了時間を入力してください'); return; }
   const sMin=timeToMin(start), eMin=timeToMin(end);
   if(eMin<=sMin)            { showErr('終了時間は開始時間より後にしてください'); return; }
-  if(eMin-sMin > 180)       { showErr('一度の予約は最大180分（3時間）までです'); return; }
+  if(eMin-sMin > 190)       { showErr('一度の予約は最大190分（3時間10分）までです'); return; }
   if(sMin<DAY_START)        { showErr('予約は9:00以降から可能です'); return; }
   if(eMin>DAY_END)          { showErr('予約は19:00までです'); return; }
-  if(!band)                 { showErr('バンド名を入力してください'); return; }
-  if(!member)               { showErr('担当者名を入力してください'); return; }
+  if(!band)                 { showErr('バンド名または個人名を入力してください'); return; }
+  if(!member)               { showErr('鍵の返却者を入力してください'); return; }
 
   const dKey    = dateKey(getWeekDates(weekOffset)[day]);
   const conflict= checkOverlap(dKey, start, end, null);
@@ -745,14 +783,41 @@ document.getElementById('btnBook').addEventListener('click', async ()=>{
   }
 });
 
-document.getElementById('btnDelete').addEventListener('click', async ()=>{
-  if(confirm('この予約を削除しますか？')){
-    try {
-      await window._fbDelete(activeViewId);
-      closeOverlay();
-    } catch(e) {
-      alert('削除に失敗しました。接続を確認してください。');
-    }
+// ② 削除ボタン → 確認エリアへ切り替え
+document.getElementById('btnDelete').addEventListener('click', ()=>{
+  document.getElementById('deleteHint').innerHTML =
+    `「<strong>${escHtml(activeViewBand)}</strong>」の予約を削除します。<br>バンド名または個人名をそのまま入力して確定してください。`;
+  document.getElementById('deleteBandInput').value = '';
+  document.getElementById('deleteErr').style.display = 'none';
+  document.getElementById('viewArea').style.display          = 'none';
+  document.getElementById('deleteConfirmArea').style.display = '';
+  setTimeout(()=>document.getElementById('deleteBandInput').focus(), 60);
+});
+
+// 削除確認：戻る
+document.getElementById('btnDeleteCancel').addEventListener('click', ()=>{
+  document.getElementById('deleteConfirmArea').style.display = 'none';
+  document.getElementById('viewArea').style.display          = '';
+});
+
+// 削除確認：実行
+document.getElementById('btnDeleteConfirm').addEventListener('click', async ()=>{
+  const input   = document.getElementById('deleteBandInput').value.trim();
+  const errEl   = document.getElementById('deleteErr');
+  if(!input) {
+    errEl.textContent = 'バンド名または個人名を入力してください';
+    errEl.style.display = 'block'; return;
+  }
+  if(input.toLowerCase() !== (activeViewBand||'').toLowerCase()) {
+    errEl.textContent = 'バンド名が一致しません。もう一度確認してください。';
+    errEl.style.display = 'block'; return;
+  }
+  try {
+    await window._fbDelete(activeViewId);
+    closeOverlay();
+  } catch(e) {
+    errEl.textContent = '削除に失敗しました。接続を確認してください。';
+    errEl.style.display = 'block';
   }
 });
 
