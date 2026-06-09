@@ -311,7 +311,26 @@
       letter-spacing: 0.01em;
     }
 
-    /* ── 時限バンド（曜日カラム内） ── */
+    /* タブ切り替え（時限／時刻） */
+    .booking-tabs {
+      display: flex;
+      border: 1px solid var(--border-md);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+    }
+    .tab-btn {
+      flex: 1; padding: 9px 0;
+      font-size: 13px; font-family: inherit; font-weight: 600;
+      background: none; border: none; cursor: pointer;
+      color: var(--gray-400); transition: background 0.15s, color 0.15s;
+    }
+    .tab-btn.active  { background: var(--green-400); color: #fff; }
+    .tab-btn:not(.active):hover { background: var(--gray-50); color: var(--gray-800); }
+    #tabContentTime {
+      grid-column: 1 / -1;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
     .period-band {
       position: absolute; left: 0; right: 0;
       pointer-events: none; z-index: 0;
@@ -411,20 +430,23 @@
   <div class="modal">
     <div id="formArea">
       <h3>予約する</h3>
-      <p class="sub">時限または時間で予約できます</p>
+      <p class="sub">時限または時刻で指定できます</p>
       <div class="form-grid">
-        <div class="form-field">
+        <div class="form-field full">
           <label>曜日</label>
           <select id="daySel"></select>
         </div>
-        <div class="form-field">
-          <label>日付</label>
-          <input type="text" id="dateDisp" readonly style="background:var(--gray-50);cursor:default;" />
-        </div>
         <div class="form-field full">
-          <label>時限で予約する（任意）</label>
+          <div class="booking-tabs">
+            <button type="button" id="tabPeriod" class="tab-btn active">時限で予約</button>
+            <button type="button" id="tabTime"   class="tab-btn">時刻で指定</button>
+          </div>
+        </div>
+        <!-- 時限タブ -->
+        <div class="form-field full" id="tabContentPeriod">
+          <label>時限</label>
           <select id="periodSel">
-            <option value="">── 時間で指定する ──</option>
+            <option value="">── 選択してください ──</option>
             <option value="0">1限　　9:00 〜 10:30</option>
             <option value="1">2限　　10:40 〜 12:10</option>
             <option value="2">昼休み　12:10 〜 13:00</option>
@@ -434,13 +456,16 @@
             <option value="6">授業外　17:50 〜 18:30</option>
           </select>
         </div>
-        <div class="form-field">
-          <label>開始時間</label>
-          <input type="time" id="startInput" min="09:00" max="19:00" value="09:00" />
-        </div>
-        <div class="form-field">
-          <label>終了時間</label>
-          <input type="time" id="endInput" min="09:00" max="19:00" value="10:00" />
+        <!-- 時刻タブ（非表示） -->
+        <div id="tabContentTime" style="display:none">
+          <div class="form-field">
+            <label>開始時間</label>
+            <input type="time" id="startInput" min="09:00" max="19:00" value="09:00" />
+          </div>
+          <div class="form-field">
+            <label>終了時間</label>
+            <input type="time" id="endInput" min="09:00" max="19:00" value="10:00" />
+          </div>
         </div>
         <div class="form-field full">
           <label>バンド名または個人名</label>
@@ -510,7 +535,7 @@ let fbReady     = false;
 // ── 時限データ（90分授業・5限制・昼休み50分）──
 const PERIODS = [
   { label:'1限',   startTime:'9:00',  endTime:'10:30', color:'#97C459', bg:'rgba(99,153,34,0.08)',   text:'#27500A', muted:'#639922' },
-  { label:'2限',   startTime:'10:40', endTime:'12:10', color:'#7CB342', bg:'rgba(99,153,34,0.06)',   text:'#27500A', muted:'#639922' },
+  { label:'2限',   startTime:'10:40', endTime:'12:10', color:'#84CC16', bg:'rgba(132,204,22,0.08)',  text:'#365314', muted:'#65A30D' },
   { label:'昼休み',startTime:'12:10', endTime:'13:00', color:'#F59E0B', bg:'rgba(245,158,11,0.07)',  text:'#78350F', muted:'#D97706', isBreak:true },
   { label:'3限',   startTime:'13:00', endTime:'14:30', color:'#34D399', bg:'rgba(52,211,153,0.07)',  text:'#065F46', muted:'#059669' },
   { label:'4限',   startTime:'14:40', endTime:'16:10', color:'#60A5FA', bg:'rgba(96,165,250,0.07)',  text:'#1E3A8A', muted:'#3B82F6' },
@@ -669,25 +694,38 @@ function buildDaySel(selectedDay) {
     if(d===selectedDay) opt.selected = true;
     sel.appendChild(opt);
   });
-  updateDateDisp();
 }
-function updateDateDisp() {
-  const day = document.getElementById('daySel').value;
-  const dt  = getWeekDates(weekOffset)[day];
-  document.getElementById('dateDisp').value =
-    `${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日`;
+// ── タブ切り替え ────────────────────────────────
+function switchTab(tab) {
+  const isPeriod = tab === 'period';
+  document.getElementById('tabPeriod').classList.toggle('active', isPeriod);
+  document.getElementById('tabTime').classList.toggle('active', !isPeriod);
+  document.getElementById('tabContentPeriod').style.display = isPeriod ? '' : 'none';
+  document.getElementById('tabContentTime').style.display   = isPeriod ? 'none' : 'grid';
 }
+
 function openForm(day, startTime, endTime) {
-  buildDaySel(day||'mon');
-  document.getElementById('startInput').value  = startTime||'09:00';
-  document.getElementById('endInput').value    = endTime||'10:00';
+  buildDaySel(day || 'mon');
   document.getElementById('bandInput').value   = '';
   document.getElementById('memberInput').value = '';
-  document.getElementById('periodSel').value   = '';
-  updatePeriodSel(); // 時間が時限と一致していれば自動選択
   document.getElementById('formErr').style.display = 'none';
-  document.getElementById('formArea').style.display = '';
-  document.getElementById('viewArea').style.display = 'none';
+
+  if(startTime && endTime) {
+    // タイムラインクリック経由：時刻タブで開く
+    document.getElementById('startInput').value = startTime;
+    document.getElementById('endInput').value   = endTime;
+    document.getElementById('periodSel').value  = '';
+    updatePeriodSel();
+    switchTab('time');
+  } else {
+    // ボタン経由：時限タブで開く（未選択）
+    document.getElementById('periodSel').value = '';
+    switchTab('period');
+  }
+
+  document.getElementById('formArea').style.display        = '';
+  document.getElementById('viewArea').style.display        = 'none';
+  document.getElementById('deleteConfirmArea').style.display = 'none';
   document.getElementById('overlay').classList.add('show');
   setTimeout(()=>document.getElementById('bandInput').focus(), 60);
 }
@@ -758,6 +796,10 @@ document.getElementById('btnBook').addEventListener('click', async ()=>{
   const errEl  = document.getElementById('formErr');
   const showErr = msg => { errEl.textContent=msg; errEl.style.display='block'; };
 
+  const isPeriodTab = document.getElementById('tabPeriod').classList.contains('active');
+  if(isPeriodTab && !document.getElementById('periodSel').value) {
+    showErr('時限を選択してください'); return;
+  }
   if(!start||!end)          { showErr('開始・終了時間を入力してください'); return; }
   const sMin=timeToMin(start), eMin=timeToMin(end);
   if(eMin<=sMin)            { showErr('終了時間は開始時間より後にしてください'); return; }
@@ -821,7 +863,8 @@ document.getElementById('btnDeleteConfirm').addEventListener('click', async ()=>
   }
 });
 
-document.getElementById('daySel').addEventListener('change', updateDateDisp);
+document.getElementById('tabPeriod').addEventListener('click', ()=> switchTab('period'));
+document.getElementById('tabTime').addEventListener('click',   ()=> switchTab('time'));
 document.getElementById('periodSel').addEventListener('change', ()=>{
   const idx = parseInt(document.getElementById('periodSel').value);
   if(!isNaN(idx) && PERIODS[idx]) {
@@ -844,7 +887,7 @@ document.getElementById('todayBtn').addEventListener('click', ()=>{ weekOffset=0
 document.getElementById('btnNew').addEventListener('click', ()=>{
   const dow = new Date().getDay();
   const map = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'mon'};
-  openForm(map[dow]||'mon', '09:00', '10:00');
+  openForm(map[dow]||'mon'); // 時限タブで開く
 });
 
 // ── 起動 ────────────────────────────────────────
