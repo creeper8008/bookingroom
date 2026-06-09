@@ -196,20 +196,22 @@
     .tl-gline.hour { border-top: 1px solid var(--border-md); }
     .tl-gline.half { border-top: 1px dashed var(--border); }
 
-    /* 予約ブロック */
+    /* 予約ブロック — インディゴ白カード（全時限背景と明確に区別） */
     .booking-block {
       position: absolute; left: 3px; right: 3px;
       border-radius: var(--r-sm);
-      background: var(--green-50); border: 1.5px solid var(--green-200);
-      border-left: 4px solid var(--green-400);
+      background: #FFFFFF;
+      border: 1.5px solid rgba(79,70,229,0.22);
+      border-left: 4px solid #4F46E5;
       padding: 3px 5px; overflow: hidden; cursor: pointer; z-index: 10;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.10);
       transition: box-shadow 0.12s, transform 0.1s;
     }
-    .booking-block:hover { box-shadow: 0 2px 8px rgba(99,153,34,0.25); transform: scaleX(0.97); }
-    .bb-time   { font-size: 9px; font-family: 'DM Mono', monospace; color: var(--green-600); }
-    .bb-period { font-size: 9px; color: var(--green-400); font-weight: 700; line-height: 1; }
-    .bb-band   { font-size: 11px; font-weight: 700; color: var(--green-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bb-member { font-size: 10px; color: var(--green-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .booking-block:hover { box-shadow: 0 3px 10px rgba(79,70,229,0.20); transform: scaleX(0.97); }
+    .bb-time   { font-size: 9px; font-family: 'DM Mono', monospace; color: #6366F1; }
+    .bb-period { font-size: 9px; color: #3730A3; font-weight: 700; line-height: 1; }
+    .bb-band   { font-size: 11px; font-weight: 700; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bb-member { font-size: 10px; color: #6B7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* 今週以外の閲覧モード通知 */
     .week-notice {
