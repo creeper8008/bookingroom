@@ -141,7 +141,7 @@
       display: flex; border-bottom: 2px solid var(--border-md);
       background: var(--surface); flex-shrink: 0;
     }
-    .tl-ruler-head { width: 64px; flex-shrink: 0; border-right: 1px solid var(--border-md); }
+    .tl-ruler-head { display: none; }
     .tl-day-head {
       flex: 1; padding: 10px 4px; text-align: center;
       font-size: 12px; font-weight: 500; color: var(--gray-400);
@@ -156,20 +156,34 @@
     .tl-scroll { overflow-y: auto; max-height: 68vh; }
     .tl-body   { display: flex; position: relative; }
 
-    .tl-ruler {
-      width: 64px; flex-shrink: 0; position: relative;
+    /* 時限列（ルーラーに代わるラベル列） */
+    .tl-period-head {
+      width: 56px; flex-shrink: 0;
+      border-right: 2px solid var(--border-md);
+      background: var(--gray-50);
+    }
+    .tl-period-col {
+      width: 56px; flex-shrink: 0; position: relative;
       border-right: 2px solid var(--border-md); background: var(--gray-50);
+      overflow: hidden;
     }
-    .tl-mark {
+    .period-section {
       position: absolute; left: 0; right: 0;
-      display: flex; align-items: flex-start; justify-content: flex-end;
-      pointer-events: none;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: var(--ps-bg, rgba(99,153,34,0.08));
+      border-top: 2px solid var(--ps-color, #97C459);
+      overflow: hidden; padding: 2px 2px; gap: 2px;
     }
-    .tm-label { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--gray-400); padding-right: 5px; line-height: 1; }
-    .tm-tick  { width: 10px; height: 1px; background: var(--gray-300); flex-shrink: 0; margin-top: 4px; }
-    .tl-mark.hour .tm-label { font-size: 11px; color: var(--gray-600); font-weight: 500; }
-    .tl-mark.hour .tm-tick  { width: 14px; background: var(--gray-400); }
-    .tl-mark.half .tm-label { font-size: 9px; color: var(--gray-300); }
+    .ps-name {
+      font-size: 10px; font-weight: 700; line-height: 1;
+      color: var(--ps-text, #27500A); white-space: nowrap;
+    }
+    .ps-time {
+      font-size: 7.5px; font-family: 'DM Mono', monospace;
+      color: var(--ps-muted, #639922); text-align: center;
+      line-height: 1.25; white-space: nowrap;
+    }
 
     .tl-day-col {
       flex: 1; position: relative;
@@ -193,8 +207,26 @@
     }
     .booking-block:hover { box-shadow: 0 2px 8px rgba(99,153,34,0.25); transform: scaleX(0.97); }
     .bb-time   { font-size: 9px; font-family: 'DM Mono', monospace; color: var(--green-600); }
+    .bb-period { font-size: 9px; color: var(--green-400); font-weight: 700; line-height: 1; }
     .bb-band   { font-size: 11px; font-weight: 700; color: var(--green-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bb-member { font-size: 10px; color: var(--green-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* 今週以外の閲覧モード通知 */
+    .week-notice {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--gray-50); border: 1px solid var(--border-md);
+      border-radius: var(--r-md); padding: 8px 14px;
+      font-size: 12px; color: var(--gray-600); margin-bottom: 1rem;
+    }
+    .week-notice-icon { font-size: 14px; }
+
+    /* 時限チップ（viewArea） */
+    .view-period-chip {
+      background: var(--green-50); color: var(--green-600);
+      font-family: 'Noto Sans JP', sans-serif; font-weight: 700;
+      font-size: 13px; padding: 5px 10px; border-radius: var(--r-sm);
+      display: inline-block; margin-bottom: 12px; margin-left: 6px;
+    }
 
     /* ローディング */
     .loading-overlay {
@@ -324,11 +356,15 @@
     <button class="btn-new" id="btnNew" disabled><span>＋</span> 新規予約</button>
   </div>
 
+  <div id="weekNotice" class="week-notice" style="display:none">
+    <span class="week-notice-icon">👁</span>
+    <span>この週は閲覧のみです — 新規予約・削除は<strong>今週のみ</strong>行えます</span>
+  </div>
+
   <div class="tl-outer">
     <div class="tl-inner">
       <div class="tl-header">
         <div class="tl-period-head"></div>
-      <div class="tl-ruler-head"></div>
         <div class="tl-day-head" id="th-mon"><span>月</span><span class="date-num" id="dn-mon"></span></div>
         <div class="tl-day-head" id="th-tue"><span>火</span><span class="date-num" id="dn-tue"></span></div>
         <div class="tl-day-head" id="th-wed"><span>水</span><span class="date-num" id="dn-wed"></span></div>
@@ -339,7 +375,6 @@
       <div class="tl-scroll">
         <div class="tl-body">
           <div class="tl-period-col" id="periodCol"></div>
-          <div class="tl-ruler" id="ruler"></div>
           <div class="tl-day-col" id="col-mon"></div>
           <div class="tl-day-col" id="col-tue"></div>
           <div class="tl-day-col" id="col-wed"></div>
@@ -357,7 +392,7 @@
   <div class="modal">
     <div id="formArea">
       <h3>予約する</h3>
-      <p class="sub">好きな時間を自由に指定できます</p>
+      <p class="sub">時限または時間で予約できます</p>
       <div class="form-grid">
         <div class="form-field">
           <label>曜日</label>
@@ -366,6 +401,18 @@
         <div class="form-field">
           <label>日付</label>
           <input type="text" id="dateDisp" readonly style="background:var(--gray-50);cursor:default;" />
+        </div>
+        <div class="form-field full">
+          <label>時限で予約する（任意）</label>
+          <select id="periodSel">
+            <option value="">── 時間で指定する ──</option>
+            <option value="0">1限　　9:00 〜 10:30</option>
+            <option value="1">2限　　10:40 〜 12:10</option>
+            <option value="2">昼休み　12:10 〜 13:00</option>
+            <option value="3">3限　　13:00 〜 14:30</option>
+            <option value="4">4限　　14:40 〜 16:10</option>
+            <option value="5">5限　　16:20 〜 17:50</option>
+          </select>
         </div>
         <div class="form-field">
           <label>開始時間</label>
@@ -393,7 +440,10 @@
     <div id="viewArea" style="display:none">
       <h3>予約内容</h3>
       <p class="sub" id="viewDateSub"></p>
-      <span class="view-chip" id="viewTime"></span>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0;margin-bottom:12px;">
+        <span class="view-chip" id="viewTime"></span>
+        <span class="view-period-chip" id="viewPeriod" style="display:none"></span>
+      </div>
       <p class="view-band" id="viewBand"></p>
       <p class="view-member" id="viewMember"></p>
       <div class="modal-btns">
@@ -473,36 +523,29 @@ function updateHeader() {
     const col=document.getElementById('col-'+d);
     if(isToday(dt)){ th.classList.add('today'); col.classList.add('today-col'); }
     else           { th.classList.remove('today'); col.classList.remove('today-col'); }
+    col.style.cursor = (weekOffset === 0) ? 'crosshair' : 'default';
   });
+  // 今週以外は新規予約ボタンを無効化し、通知を表示
+  const isCurrentWeek = weekOffset === 0;
+  if(fbReady) document.getElementById('btnNew').disabled = !isCurrentWeek;
+  document.getElementById('weekNotice').style.display = isCurrentWeek ? 'none' : '';
 }
 
 // ── タイムライン初期化（1回だけ） ──────────────
 function initTimeline() {
-  document.getElementById('ruler').style.height = TOTAL_H + 'px';
   DAYS.forEach(d => { document.getElementById('col-'+d).style.height = TOTAL_H + 'px'; });
-
-  const ruler = document.getElementById('ruler');
-  for(let m=0; m<=TOTAL_MIN; m+=30){
-    const isHour = m%60===0;
-    const el = document.createElement('div');
-    el.className = 'tl-mark '+(isHour?'hour':'half');
-    el.style.top = (TOP_OFFSET + m*PX_PER_MIN)+'px';
-    const absMin = DAY_START+m;
-    el.innerHTML = `<span class="tm-label">${Math.floor(absMin/60)}:${m%60===0?'00':'30'}</span><span class="tm-tick"></span>`;
-    ruler.appendChild(el);
-  }
 
   // ── 時限専用列・曜日バンドを描画 ──
   const periodCol = document.getElementById('periodCol');
   periodCol.style.height = TOTAL_H + 'px';
 
-  PERIODS.forEach(p => {
+  PERIODS.forEach((p, idx) => {
     const sMin  = timeToMin(p.startTime);
     const eMin  = timeToMin(p.endTime);
     const top   = TOP_OFFSET + (sMin - DAY_START) * PX_PER_MIN;
     const bandH = (eMin - sMin) * PX_PER_MIN;
 
-    // ── 時限専用列にセクション追加（ルーラーと完全分離）──
+    // 時限専用列にセクション追加
     const sec = document.createElement('div');
     sec.className = 'period-section';
     sec.style.cssText = `
@@ -510,13 +553,15 @@ function initTimeline() {
       --ps-color: ${p.color}; --ps-bg: ${p.bg};
       --ps-text: ${p.text}; --ps-muted: ${p.muted};
     `;
+    const tStart = minToTime(sMin);
+    const tEnd   = minToTime(eMin);
     sec.innerHTML = `
       <span class="ps-name">${p.label}</span>
-      <span class="ps-time">${p.startTime}<br>〜<br>${p.endTime}</span>
+      <span class="ps-time">${tStart}<br>〜<br>${tEnd}</span>
     `;
     periodCol.appendChild(sec);
 
-    // ── 曜日カラムに背景バンドのみ（ラベルなし・z-index:0）──
+    // 曜日カラムに背景バンド
     DAYS.forEach(d => {
       const col = document.getElementById('col-' + d);
       const band = document.createElement('div');
@@ -535,7 +580,7 @@ function initTimeline() {
       col.appendChild(line);
     }
     col.addEventListener('click', e=>{
-      if(!fbReady || e.target.closest('.booking-block')) return;
+      if(!fbReady || weekOffset !== 0 || e.target.closest('.booking-block')) return;
       const scrollEl = col.closest('.tl-scroll');
       const rect     = col.getBoundingClientRect();
       const scrollTop= scrollEl ? scrollEl.scrollTop : 0;
@@ -564,6 +609,7 @@ function renderBookings() {
       block.style.top  = top+'px';
       block.style.height = h+'px';
       let inner = `<div class="bb-time">${b.startTime}〜${b.endTime}</div>`;
+      if(b.period) inner += `<div class="bb-period">${escHtml(b.period)}</div>`;
       inner += `<div class="bb-band">${escHtml(b.band)}</div>`;
       if(h>=42) inner += `<div class="bb-member">${escHtml(b.member)}</div>`;
       block.innerHTML = inner;
@@ -600,6 +646,8 @@ function openForm(day, startTime, endTime) {
   document.getElementById('endInput').value    = endTime||'10:00';
   document.getElementById('bandInput').value   = '';
   document.getElementById('memberInput').value = '';
+  document.getElementById('periodSel').value   = '';
+  updatePeriodSel(); // 時間が時限と一致していれば自動選択
   document.getElementById('formErr').style.display = 'none';
   document.getElementById('formArea').style.display = '';
   document.getElementById('viewArea').style.display = 'none';
@@ -612,8 +660,18 @@ function openView(b) {
   document.getElementById('viewDateSub').textContent =
     `${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日 (${DAY_LABELS[b.day]})`;
   document.getElementById('viewTime').textContent   = `${b.startTime} 〜 ${b.endTime}`;
+  // 時限を表示
+  const periodEl = document.getElementById('viewPeriod');
+  if(b.period) {
+    periodEl.textContent = b.period;
+    periodEl.style.display = '';
+  } else {
+    periodEl.style.display = 'none';
+  }
   document.getElementById('viewBand').textContent   = b.band;
   document.getElementById('viewMember').textContent = `担当者：${b.member}`;
+  // 今週以外は削除ボタンを非表示
+  document.getElementById('btnDelete').style.display = weekOffset === 0 ? '' : 'none';
   document.getElementById('formArea').style.display = 'none';
   document.getElementById('viewArea').style.display = '';
   document.getElementById('overlay').classList.add('show');
@@ -630,6 +688,24 @@ function checkOverlap(dKey, start, end, excludeId) {
     b.dateKey===dKey && b.id!==excludeId &&
     sMin<timeToMin(b.endTime) && eMin>timeToMin(b.startTime)
   );
+}
+
+// ── 時限検出 ────────────────────────────────────
+function detectPeriodLabel(start, end) {
+  const s = timeToMin(start), e = timeToMin(end);
+  const match = PERIODS.find(p => timeToMin(p.startTime)===s && timeToMin(p.endTime)===e);
+  return match ? match.label : null;
+}
+
+// 時間入力が時限と一致すればセレクタを自動更新
+function updatePeriodSel() {
+  const start = document.getElementById('startInput').value;
+  const end   = document.getElementById('endInput').value;
+  if(!start || !end) return;
+  const idx = PERIODS.findIndex(p =>
+    timeToMin(p.startTime)===timeToMin(start) && timeToMin(p.endTime)===timeToMin(end)
+  );
+  document.getElementById('periodSel').value = idx >= 0 ? String(idx) : '';
 }
 
 // ── イベント ────────────────────────────────────
@@ -656,7 +732,9 @@ document.getElementById('btnBook').addEventListener('click', async ()=>{
   if(conflict){ showErr(`${conflict.startTime}〜${conflict.endTime}「${conflict.band}」と重複しています`); return; }
 
   const id = genId();
+  const periodLabel = detectPeriodLabel(start, end);
   const data = { id, dateKey:dKey, day, startTime:start, endTime:end, band, member };
+  if(periodLabel) data.period = periodLabel;
   try {
     await window._fbSave(id, data);
     closeOverlay();
@@ -677,6 +755,17 @@ document.getElementById('btnDelete').addEventListener('click', async ()=>{
 });
 
 document.getElementById('daySel').addEventListener('change', updateDateDisp);
+document.getElementById('periodSel').addEventListener('change', ()=>{
+  const idx = parseInt(document.getElementById('periodSel').value);
+  if(!isNaN(idx) && PERIODS[idx]) {
+    const p = PERIODS[idx];
+    document.getElementById('startInput').value = minToTime(timeToMin(p.startTime));
+    document.getElementById('endInput').value   = minToTime(timeToMin(p.endTime));
+    document.getElementById('formErr').style.display = 'none';
+  }
+});
+document.getElementById('startInput').addEventListener('change', updatePeriodSel);
+document.getElementById('endInput').addEventListener('change', updatePeriodSel);
 document.getElementById('btnCancel').addEventListener('click', closeOverlay);
 document.getElementById('btnClose').addEventListener('click', closeOverlay);
 document.getElementById('overlay').addEventListener('click', e=>{
@@ -698,7 +787,7 @@ updateHeader();
 // Firebase 準備完了を待つ
 function onFirebaseReady() {
   fbReady = true;
-  document.getElementById('btnNew').disabled = false;
+  document.getElementById('btnNew').disabled = (weekOffset !== 0);
   setStatus('connected', 'リアルタイム同期中');
   document.getElementById('loadingOverlay').classList.add('hidden');
 
