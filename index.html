@@ -153,7 +153,7 @@
     }
     .tl-day-head.today { background: var(--green-50); color: var(--green-600); }
 
-    .tl-scroll { overflow-y: auto; max-height: 68vh; }
+    .tl-scroll { overflow-y: auto; max-height: min(736px, 78vh); }
     .tl-body   { display: flex; position: relative; }
 
     /* 時限列（ルーラーに代わるラベル列） */
@@ -352,7 +352,7 @@
       .week-label { font-size: 12px; padding: 0 4px; }
       .btn-new { padding: 8px 14px; font-size: 13px; }
       .tl-inner { min-width: 480px; }
-      .tl-scroll { max-height: calc(100svh - 130px); }
+      .tl-scroll { max-height: calc(100svh - 140px); }
       .tl-day-head { padding: 7px 2px; font-size: 11px; }
       .tl-day-head .date-num { font-size: 10px; }
       .modal { padding: 1.25rem; }
@@ -469,11 +469,11 @@
         </div>
         <div class="form-field full">
           <label>バンド名または個人名</label>
-          <input type="text" id="bandInput" placeholder="例：Rolling Clones / 山田太郎" maxlength="50" autocomplete="off" />
+          <input type="text" id="bandInput" maxlength="50" autocomplete="off" />
         </div>
         <div class="form-field full">
           <label>鍵の返却者</label>
-          <input type="text" id="memberInput" placeholder="例：山田太郎" maxlength="30" autocomplete="off" />
+          <input type="text" id="memberInput" maxlength="30" autocomplete="off" />
         </div>
       </div>
       <p class="err" id="formErr"></p>
@@ -515,7 +515,7 @@
 
 <script>
 // ── 定数 ────────────────────────────────────────
-const PX_PER_MIN = 1.5;
+const PX_PER_MIN = 1.2;
 const DAY_START  = 9 * 60;
 const DAY_END    = 19 * 60;
 const TOTAL_MIN  = DAY_END - DAY_START;
