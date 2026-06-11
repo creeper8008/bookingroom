@@ -13,9 +13,12 @@
        下の YOUR_*** の部分をすべて自分の値に書き換えてください
   ======================================================== -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, remove, onValue }
+    import { initializeApp }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, signInWithCustomToken, onAuthStateChanged, signOut, updateProfile }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
   apiKey: "AIzaSyAeJ3BidjE4fHzuve12gE_mEd5WXZmFezM",
@@ -27,20 +30,123 @@
   appId: "1:55108410187:web:f46d2610abebd5afc2a6ce",
   measurementId: "G-KDMV9MDHR6"
 };
-    const app = initializeApp(firebaseConfig);
-    const db  = getDatabase(app);
+
+    const app  = initializeApp(firebaseConfig);
+    const db   = getDatabase(app);
+    const auth = getAuth(app);
     const bookingsRef = ref(db, 'bookings');
 
-    // ── Firebase の read/write をグローバルに公開 ──
-    window._fbSave = (id, data) => set(ref(db, `bookings/${id}`), data);
-    window._fbDelete = (id)     => remove(ref(db, `bookings/${id}`));
-    window._fbListen = (cb)     => onValue(bookingsRef, snap => {
-      cb(snap.val() || {});
+    // Cloud Functions のベースURL
+    const CF = 'https://asia-northeast1-keion-tantakatan.cloudfunctions.net';
+
+    let _pendingDisplayName = null;
+
+    // ── LINEコールバック処理（?code=xxx が付いているとき）──
+    const _p     = new URLSearchParams(location.search);
+    const _code  = _p.get('code');
+    const _state = _p.get('state');
+
+    if (_code && _state && sessionStorage.getItem('lineState') === _state) {
+      sessionStorage.removeItem('lineState');
+      history.replaceState({}, '', location.pathname); // URLを綺麗に
+      (async () => {
+        const btn = document.getElementById('btnLineLogin');
+        if (btn) { btn.textContent = '認証中...'; btn.disabled = true; }
+        try {
+          const r = await fetch(`${CF}/lineAuth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: _code })
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            alert(d.error || 'ログインに失敗しました');
+            if (btn) { btn.textContent = 'LINEでログイン'; btn.disabled = false; }
+            return;
+          }
+          _pendingDisplayName = d.displayName;
+          await signInWithCustomToken(auth, d.customToken);
+        } catch (e) {
+          console.error('LINE auth error:', e);
+          alert('ログイン中にエラーが発生しました');
+          if (btn) { btn.textContent = 'LINEでログイン'; btn.disabled = false; }
+        }
+      })();
+    }
+
+    // ── 認証状態の変化を監視 ──
+    onAuthStateChanged(auth, async user => {
+      if (user) {
+        if (_pendingDisplayName && !user.displayName) {
+          await updateProfile(user, { displayName: _pendingDisplayName });
+          _pendingDisplayName = null;
+        }
+        const name = user.displayName || '部員';
+        const btn  = document.getElementById('btnLineLogin');
+        const area = document.getElementById('userArea');
+        const uname= document.getElementById('userName');
+        if (btn)   btn.style.display   = 'none';
+        if (area)  area.style.display  = 'flex';
+        if (uname) uname.textContent   = name;
+      } else {
+        const btn  = document.getElementById('btnLineLogin');
+        const area = document.getElementById('userArea');
+        if (btn)  { btn.style.display = ''; btn.textContent = 'LINEでログイン'; btn.disabled = false; }
+        if (area)   area.style.display = 'none';
+      }
+      document.dispatchEvent(new CustomEvent('auth-changed', { detail: { user } }));
     });
+
+    // ── LINEログインボタン ──
+    document.getElementById('btnLineLogin')?.addEventListener('click', () => {
+      const state = crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+      sessionStorage.setItem('lineState', state);
+      location.href = 'https://access.line.me/oauth2/v2.1/authorize'
+        + '?response_type=code'
+        + '&client_id=2010370089'
+        + `&redirect_uri=${encodeURIComponent('https://creeper8008.github.io/bookingroom/')}`
+        + `&state=${state}`
+        + '&scope=profile%20openid';
+    });
+
+    // ── ログアウト ──
+    document.getElementById('btnLogout')?.addEventListener('click', () => signOut(auth));
+
+    // ── グローバル関数 ──
+    // 読み取り：セキュリティルールで public read を許可済みのため認証不要
+    window._fbListen = (cb) => onValue(bookingsRef, snap => cb(snap.val() || {}));
+
+    // 書き込み：Cloud Function経由（Firebaseトークンを添付）
+    window._fbSave = async (id, data) => {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('ログインが必要です');
+      const r = await fetch(`${CF}/saveBooking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ id, data })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || '保存に失敗しました');
+    };
+
+    // 削除：Cloud Function経由
+    window._fbDelete = async (id) => {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('ログインが必要です');
+      const r = await fetch(`${CF}/deleteBooking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ id })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || '削除に失敗しました');
+    };
+
     window._fbReady = true;
     document.dispatchEvent(new Event('firebase-ready'));
   </script>
-  <!-- ======================================================== -->
 
   <style>
     :root {
@@ -359,7 +465,32 @@
       .form-field.full { grid-column: 1; }
     }
 
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    /* LINEログイン・ユーザーエリア */
+    .toolbar-auth { display: flex; align-items: center; }
+    .user-area    { display: flex; align-items: center; gap: 10px; }
+    .btn-line {
+      background: #06C755; color: #fff;
+      border: none; border-radius: var(--r-md);
+      padding: 9px 16px; font-size: 13px; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+      transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-line:hover    { background: #05B34B; }
+    .btn-line:disabled { opacity: 0.65; cursor: default; }
+    .user-name {
+      font-size: 13px; font-weight: 500; color: var(--gray-600);
+      max-width: 100px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .btn-logout {
+      font-size: 12px; color: var(--gray-400);
+      background: none; border: 1px solid var(--border-md);
+      border-radius: var(--r-sm); padding: 5px 10px;
+      cursor: pointer; font-family: inherit;
+      transition: color 0.12s, border-color 0.12s; white-space: nowrap;
+    }
+    .btn-logout:hover { color: var(--gray-800); border-color: var(--gray-400); }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 99px; }
   </style>
@@ -389,7 +520,21 @@
       <button id="todayBtn" class="today-btn">今週</button>
       <button id="nextWeek">&#8250;</button>
     </div>
-    <button class="btn-new" id="btnNew" disabled><span>＋</span> 新規予約</button>
+    <div class="toolbar-auth">
+      <!-- 未ログイン時 -->
+      <button class="btn-line" id="btnLineLogin">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+        </svg>
+        LINEでログイン
+      </button>
+      <!-- ログイン後（認証後に表示） -->
+      <div id="userArea" style="display:none" class="user-area">
+        <span class="user-name" id="userName"></span>
+        <button class="btn-logout" id="btnLogout">ログアウト</button>
+        <button class="btn-new" id="btnNew" disabled><span>＋</span> 新規予約</button>
+      </div>
+    </div>
   </div>
 
   <div id="weekNotice" class="week-notice" style="display:none">
@@ -526,9 +671,10 @@ const DAY_LABELS = {mon:'月',tue:'火',wed:'水',thu:'木',fri:'金',sat:'土'}
 
 let bookings    = {};
 let weekOffset  = 0;
-let activeViewId = null;
+let activeViewId   = null;
 let activeViewBand = null;
 let fbReady     = false;
+let currentUser = null; // LINEログイン済みユーザー
 
 
 // ── 時限データ（90分授業・5限制・昼休み50分）──
@@ -584,11 +730,12 @@ function updateHeader() {
     const col=document.getElementById('col-'+d);
     if(isToday(dt)){ th.classList.add('today'); col.classList.add('today-col'); }
     else           { th.classList.remove('today'); col.classList.remove('today-col'); }
-    col.style.cursor = (weekOffset === 0) ? 'crosshair' : 'default';
+    col.style.cursor = (weekOffset === 0 && !!currentUser) ? 'crosshair' : 'default';
   });
-  // 今週以外は新規予約ボタンを無効化し、通知を表示
+  // ログイン済み && 今週 のときのみ新規予約を有効化
   const isCurrentWeek = weekOffset === 0;
-  if(fbReady) document.getElementById('btnNew').disabled = !isCurrentWeek;
+  const canBook = fbReady && isCurrentWeek && !!currentUser;
+  if(fbReady) document.getElementById('btnNew').disabled = !canBook;
   document.getElementById('weekNotice').style.display = isCurrentWeek ? 'none' : '';
 }
 
@@ -641,7 +788,7 @@ function initTimeline() {
       col.appendChild(line);
     }
     col.addEventListener('click', e=>{
-      if(!fbReady || weekOffset !== 0 || e.target.closest('.booking-block')) return;
+      if(!fbReady || weekOffset !== 0 || !currentUser || e.target.closest('.booking-block')) return;
       const scrollEl = col.closest('.tl-scroll');
       const rect     = col.getBoundingClientRect();
       const scrollTop= scrollEl ? scrollEl.scrollTop : 0;
@@ -896,16 +1043,22 @@ updateHeader();
 // Firebase 準備完了を待つ
 function onFirebaseReady() {
   fbReady = true;
-  document.getElementById('btnNew').disabled = (weekOffset !== 0);
   setStatus('connected', 'リアルタイム同期中');
   document.getElementById('loadingOverlay').classList.add('hidden');
 
-  // リアルタイムリスナー：誰かが予約/削除したら全員の画面が即更新
+  // リアルタイムリスナー（読み取りは認証不要）
   window._fbListen(data => {
     bookings = data;
     renderBookings();
   });
+  updateHeader(); // btnNew は currentUser=null なので disabled のまま
 }
+
+// 認証状態変化を受け取り、予約ボタンの有効/無効を切り替える
+document.addEventListener('auth-changed', e => {
+  currentUser = e.detail.user;
+  if (fbReady) updateHeader();
+});
 
 if(window._fbReady) {
   onFirebaseReady();
