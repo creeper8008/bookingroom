@@ -12,6 +12,9 @@
        Firebase Console → プロジェクトの設定 → マイアプリ → CDN
        下の YOUR_*** の部分をすべて自分の値に書き換えてください
   ======================================================== -->
+  <!-- LIFF SDK（LINEアプリ内で自動ログインするために必要） -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
   <script type="module">
     import { initializeApp }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -36,19 +39,63 @@
     const auth = getAuth(app);
     const bookingsRef = ref(db, 'bookings');
 
-    // Cloud Functions のベースURL
-    const CF = 'https://asia-southeast1-test-lightmusic.cloudfunctions.net';
+    const CF      = 'https://asia-southeast1-test-lightmusic.cloudfunctions.net';
+    const LIFF_ID = '2010370089-Dt4j5zab';
 
     let _pendingDisplayName = null;
+    let _liffInitialized    = false;
 
-    // ── LINEコールバック処理（?code=xxx が付いているとき）──
+    // ── LINEアクセストークンでFirebase認証（LIFF・OAuth共通）──
+    async function authenticateWithLineToken(accessToken) {
+      const btn = document.getElementById('btnLineLogin');
+      if (btn) { btn.textContent = '認証中...'; btn.disabled = true; }
+      try {
+        const r = await fetch(`${CF}/lineAuth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken })
+        });
+        const d = await r.json();
+        if (!r.ok) {
+          console.error('Auth failed:', d.error);
+          if (btn) { btn.textContent = 'LINEでログイン'; btn.disabled = false; }
+          return;
+        }
+        _pendingDisplayName = d.displayName;
+        await signInWithCustomToken(auth, d.customToken);
+      } catch (e) {
+        console.error('Authentication error:', e);
+        if (btn) { btn.textContent = 'LINEでログイン'; btn.disabled = false; }
+      }
+    }
+
+    // ── LIFF自動ログイン（LINEアプリ内で開いた場合に実行）──
+    async function tryLiffAutoLogin() {
+      if (_liffInitialized || typeof liff === 'undefined') return;
+      _liffInitialized = true;
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (liff.isLoggedIn()) {
+          // LINEアプリ内：トークン取得してそのまま認証
+          await authenticateWithLineToken(liff.getAccessToken());
+        } else if (liff.isInClient()) {
+          // LINE内だがLIFF未ログイン（稀）→ 自動リダイレクト
+          liff.login({ redirectUri: location.href });
+        }
+        // 通常ブラウザ：何もしない（ボタンを表示したまま）
+      } catch (e) {
+        console.error('LIFF init error:', e);
+      }
+    }
+
+    // ── OAuthコールバック処理（通常ブラウザでボタン押した場合）──
     const _p     = new URLSearchParams(location.search);
     const _code  = _p.get('code');
     const _state = _p.get('state');
 
     if (_code && _state && sessionStorage.getItem('lineState') === _state) {
       sessionStorage.removeItem('lineState');
-      history.replaceState({}, '', location.pathname); // URLを綺麗に
+      history.replaceState({}, '', location.pathname);
       (async () => {
         const btn = document.getElementById('btnLineLogin');
         if (btn) { btn.textContent = '認証中...'; btn.disabled = true; }
@@ -56,7 +103,7 @@
           const r = await fetch(`${CF}/lineAuth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: _code })
+            body: JSON.stringify({ code: _code })  // codeで送る（OAuth用）
           });
           const d = await r.json();
           if (!r.ok) {
@@ -67,7 +114,7 @@
           _pendingDisplayName = d.displayName;
           await signInWithCustomToken(auth, d.customToken);
         } catch (e) {
-          console.error('LINE auth error:', e);
+          console.error('OAuth error:', e);
           alert('ログイン中にエラーが発生しました');
           if (btn) { btn.textContent = 'LINEでログイン'; btn.disabled = false; }
         }
@@ -93,6 +140,8 @@
         const area = document.getElementById('userArea');
         if (btn)  { btn.style.display = ''; btn.textContent = 'LINEでログイン'; btn.disabled = false; }
         if (area)   area.style.display = 'none';
+        // 未ログイン かつ OAuthコールバック中でなければ LIFF自動ログインを試みる
+        if (!_code) tryLiffAutoLogin();
       }
       document.dispatchEvent(new CustomEvent('auth-changed', { detail: { user } }));
     });
