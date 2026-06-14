@@ -495,14 +495,16 @@
     }
 
     /* ── モバイル対応 ── */
-    .tl-outer { -webkit-overflow-scrolling: touch; }
-    .tl-scroll { -webkit-overflow-scrolling: touch; }
     @media (max-width: 640px) {
       .page-header { padding: 0 0.75rem; height: 50px; gap: 8px; }
       .page-header h1 { font-size: 13px; }
       .page-header > p { display: none; }
       .status-badge { font-size: 10px; padding: 3px 7px; }
-      .container { padding: 0.75rem 0.5rem 3rem; }
+      .container {
+        padding: 0.75rem 0.5rem;
+        /* LINEブラウザ等の下部バーに被らないよう、余白を大きめに確保 */
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+      }
       .toolbar { gap: 6px; margin-bottom: 0.75rem; }
       .week-nav { padding: 5px 8px; gap: 6px; }
       .week-nav button {
@@ -515,10 +517,10 @@
       .modal-btns button { padding: 13px; font-size: 15px; min-height: 48px; }
       .booking-tabs { margin-bottom: 2px; }
       .tl-inner { min-width: 480px; }
-      .tl-scroll { max-height: none; overflow-y: visible; } /* ページ全体スクロールに任せる */
+      .tl-scroll { max-height: none; overflow-y: visible; -webkit-overflow-scrolling: auto; } /* ページ全体スクロールに任せる */
       .tl-outer {
-        overflow-y: hidden;            /* 縦方向はタッチを奪わない */
-        -webkit-overflow-scrolling: auto; /* 慣性スクロールによる引っかかりを防止 */
+        overflow-y: hidden;                /* 縦方向はタッチを奪わない */
+        -webkit-overflow-scrolling: auto;  /* 慣性スクロールによる引っかかりを完全排除 */
       }
       .tl-day-head { padding: 7px 2px; font-size: 11px; }
       .tl-day-head .date-num { font-size: 10px; }
