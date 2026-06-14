@@ -24,22 +24,21 @@
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyAeJ3BidjE4fHzuve12gE_mEd5WXZmFezM",
-  authDomain: "test-lightmusic.firebaseapp.com",
-  databaseURL: "https://test-lightmusic-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "test-lightmusic",
-  storageBucket: "test-lightmusic.firebasestorage.app",
-  messagingSenderId: "55108410187",
-  appId: "1:55108410187:web:f46d2610abebd5afc2a6ce",
-  measurementId: "G-KDMV9MDHR6"
-};
+      apiKey:            "AIzaSyDByn9o9NEQ_YswyjCRe7m5hR1nFSDgC2A",
+      authDomain:        "keion-tantakatan.firebaseapp.com",
+      databaseURL:       "https://keion-tantakatan-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId:         "keion-tantakatan",
+      storageBucket:     "keion-tantakatan.firebasestorage.app",
+      messagingSenderId: "876841706720",
+      appId:             "1:876841706720:web:dc8f8c7e623d82d3d4dc85"
+    };
 
     const app  = initializeApp(firebaseConfig);
     const db   = getDatabase(app);
     const auth = getAuth(app);
     const bookingsRef = ref(db, 'bookings');
 
-    const CF = 'https://us-central1-test-lightmusic.cloudfunctions.net';
+    const CF      = 'https://asia-northeast1-keion-tantakatan.cloudfunctions.net';
     const LIFF_ID = '2010370089-Dt4j5zab';
 
     let _pendingDisplayName = null;
@@ -422,8 +421,8 @@
     .form-field select,
     .form-field input[type=time],
     .form-field input[type=text] {
-      padding: 9px 11px; border: 1px solid var(--border-md);
-      border-radius: var(--r-sm); font-size: 13px;
+      padding: 11px 12px; border: 1px solid var(--border-md);
+      border-radius: var(--r-sm); font-size: 16px;
       font-family: 'DM Mono', monospace; background: var(--surface);
       color: var(--gray-800); outline: none; transition: border-color 0.15s; width: 100%;
     }
@@ -502,13 +501,22 @@
       .container { padding: 0.75rem 0.5rem 3rem; }
       .toolbar { gap: 6px; margin-bottom: 0.75rem; }
       .week-nav { padding: 5px 8px; gap: 6px; }
-      .week-nav button { padding: 4px 10px; font-size: 12px; }
+      .week-nav button {
+        padding: 8px 14px; font-size: 14px;
+        min-width: 44px; min-height: 40px;
+      }
       .week-label { font-size: 12px; padding: 0 4px; }
-      .btn-new { padding: 8px 14px; font-size: 13px; }
+      .btn-new { padding: 10px 18px; font-size: 14px; min-height: 44px; }
+      .tab-btn { padding: 12px 0; font-size: 14px; min-height: 44px; }
+      .modal-btns button { padding: 13px; font-size: 15px; min-height: 48px; }
+      .booking-tabs { margin-bottom: 2px; }
       .tl-inner { min-width: 480px; }
-      .tl-scroll { max-height: calc(100svh - 140px); }
+      .tl-scroll { max-height: none; overflow-y: visible; } /* ページ全体スクロールに任せる */
       .tl-day-head { padding: 7px 2px; font-size: 11px; }
       .tl-day-head .date-num { font-size: 10px; }
+      .bb-band   { font-size: 12px; }
+      .bb-member { font-size: 10px; }
+      .bb-time, .bb-period { font-size: 9px; }
       .modal { padding: 1.25rem; }
       .form-grid { grid-template-columns: 1fr; }
       .form-field.full { grid-column: 1; }
