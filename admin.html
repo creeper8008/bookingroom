@@ -54,6 +54,9 @@
   <h1>操作ログ（管理者専用）</h1>
   <p class="sub">予約の作成・削除履歴と、操作したLINEユーザーを表示します</p>
   <div id="status" class="status">読み込み中...</div>
+  <button id="btnRefresh" style="display:none; margin-bottom:14px; padding:8px 16px; font-size:13px; font-weight:700; color:#5C8A2E; background:#F3F8EC; border:1px solid #E2E8DC; border-radius:8px; cursor:pointer; font-family:inherit;">
+    ↻ 再読み込み
+  </button>
   <div class="scroll-x">
     <table id="logTable" style="display:none">
       <thead>
@@ -88,9 +91,10 @@
   const auth = getAuth(app);
   const CF   = 'https://us-central1-test-lightmusic.cloudfunctions.net';
 
-  const statusEl = document.getElementById('status');
-  const tableEl  = document.getElementById('logTable');
-  const bodyEl   = document.getElementById('logBody');
+  const statusEl  = document.getElementById('status');
+  const tableEl   = document.getElementById('logTable');
+  const bodyEl    = document.getElementById('logBody');
+  const refreshEl = document.getElementById('btnRefresh');
 
   const DAY_LABELS = {mon:'月',tue:'火',wed:'水',thu:'木',fri:'金',sat:'土'};
 
@@ -99,16 +103,20 @@
     return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   }
 
-  onAuthStateChanged(auth, async user => {
-    if (!user) {
-      statusEl.textContent = 'まず index.html でLINEログインしてから、このページを開いてください。';
-      return;
-    }
+  function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[c]));
+  }
 
-    statusEl.textContent = 'ログを取得中...';
+  async function loadLogs(user) {
+    statusEl.style.display = '';
+    statusEl.textContent   = '読み込み中...';
+    tableEl.style.display  = 'none';
+    refreshEl.disabled     = true;
 
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(/* forceRefresh= */ true);
       const r = await fetch(`${CF}/getAuditLog`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -120,6 +128,8 @@
         statusEl.textContent = d.error || 'ログの取得に失敗しました';
         return;
       }
+
+      bodyEl.innerHTML = ''; // 重複表示を防ぐため毎回クリア
 
       if (!d.logs || d.logs.length === 0) {
         statusEl.textContent = 'まだ操作ログがありません。';
@@ -149,15 +159,23 @@
 
     } catch (e) {
       console.error(e);
-      statusEl.textContent = 'エラーが発生しました: ' + e.message;
+      statusEl.style.display = '';
+      statusEl.textContent   = 'エラーが発生しました: ' + e.message;
+    } finally {
+      refreshEl.disabled = false;
     }
-  });
-
-  function escHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    }[c]));
   }
+
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      statusEl.textContent    = 'まず index.html でLINEログインしてから、このページを開いてください。';
+      refreshEl.style.display = 'none';
+      return;
+    }
+    refreshEl.style.display = '';
+    refreshEl.onclick = () => loadLogs(user);
+    loadLogs(user);
+  });
 </script>
 </body>
 </html>
