@@ -24,15 +24,15 @@
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyAeJ3BidjE4fHzuve12gE_mEd5WXZmFezM",
-  authDomain: "test-lightmusic.firebaseapp.com",
-  databaseURL: "https://test-lightmusic-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "test-lightmusic",
-  storageBucket: "test-lightmusic.firebasestorage.app",
-  messagingSenderId: "55108410187",
-  appId: "1:55108410187:web:f46d2610abebd5afc2a6ce",
-  measurementId: "G-KDMV9MDHR6"
-};
+      apiKey:            "AIzaSyAeJ3BidjE4fHzuve12gE_mEd5WXZmFezM",
+      authDomain:        "test-lightmusic.firebaseapp.com",
+      databaseURL:       "https://test-lightmusic-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId:         "test-lightmusic",
+      storageBucket:     "test-lightmusic.firebasestorage.app",
+      messagingSenderId: "55108410187",
+      appId:             "1:55108410187:web:f46d2610abebd5afc2a6ce",
+      measurementId:     "G-KDMV9MDHR6"
+    };
 
     const app  = initializeApp(firebaseConfig);
     const db   = getDatabase(app);
@@ -227,6 +227,9 @@
       font-family: 'Noto Sans JP', sans-serif;
       background: var(--bg); color: var(--gray-800);
       min-height: 100vh; font-size: 14px;
+    }
+    @supports (min-height: 100dvh) {
+      body { min-height: 100dvh; }
     }
 
     /* ── ページヘッダー ── */
@@ -513,6 +516,10 @@
       .booking-tabs { margin-bottom: 2px; }
       .tl-inner { min-width: 480px; }
       .tl-scroll { max-height: none; overflow-y: visible; } /* ページ全体スクロールに任せる */
+      .tl-outer {
+        overflow-y: hidden;            /* 縦方向はタッチを奪わない */
+        -webkit-overflow-scrolling: auto; /* 慣性スクロールによる引っかかりを防止 */
+      }
       .tl-day-head { padding: 7px 2px; font-size: 11px; }
       .tl-day-head .date-num { font-size: 10px; }
       .bb-band   { font-size: 12px; }
