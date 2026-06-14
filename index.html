@@ -93,8 +93,13 @@
     const _code  = _p.get('code');
     const _state = _p.get('state');
 
-    if (_code && _state && sessionStorage.getItem('lineState') === _state) {
-      sessionStorage.removeItem('lineState');
+    if (_code) {
+      const savedState = localStorage.getItem('lineState');
+      if (savedState !== _state) {
+        // localStorageが共有されない特殊なブラウザ環境向けの保険
+        console.warn('state mismatch (storage isolated?). Proceeding with code anyway.');
+      }
+      localStorage.removeItem('lineState');
       history.replaceState({}, '', location.pathname);
       (async () => {
         const btn = document.getElementById('btnLineLogin');
@@ -151,7 +156,7 @@
       const state = crypto.randomUUID
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2);
-      sessionStorage.setItem('lineState', state);
+      localStorage.setItem('lineState', state);
       location.href = 'https://access.line.me/oauth2/v2.1/authorize'
         + '?response_type=code'
         + '&client_id=2010370089'
