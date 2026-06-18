@@ -133,13 +133,10 @@
           await updateProfile(user, { displayName: _pendingDisplayName });
           _pendingDisplayName = null;
         }
-        const name = user.displayName || '部員';
         const btn  = document.getElementById('btnLineLogin');
         const area = document.getElementById('userArea');
-        const uname= document.getElementById('userName');
         if (btn)   btn.style.display   = 'none';
         if (area)  area.style.display  = 'flex';
-        if (uname) uname.textContent   = name;
       } else {
         const btn  = document.getElementById('btnLineLogin');
         const area = document.getElementById('userArea');
@@ -248,7 +245,26 @@
       border-radius: var(--r-sm); display: flex; align-items: center;
       justify-content: center; font-size: 17px; color: #fff;
     }
-    .page-header h1 { font-size: 15px; font-weight: 700; }
+    .page-header h1 { font-size: 15px; font-weight: 700; flex: 1; }
+
+    /* 操作ガイドアイコン（控えめ・困ったときに見る用） */
+    .guide-icon {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 1px solid var(--border-md); background: none;
+      color: var(--gray-400); font-size: 12px; font-weight: 700;
+      font-family: inherit; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .guide-icon:hover { color: var(--green-600); border-color: var(--green-300); }
+    .guide-modal { width: 420px; }
+    .guide-list { list-style: none; padding: 0; margin-bottom: 1.25rem; }
+    .guide-list li {
+      font-size: 13px; line-height: 1.7; color: var(--gray-600);
+      padding: 9px 0; border-bottom: 1px solid var(--border-md);
+    }
+    .guide-list li:last-child { border-bottom: none; }
+    .guide-list li strong { color: var(--gray-800); font-weight: 700; }
 
     /* 接続ステータスバッジ */
     .status-badge {
@@ -503,6 +519,7 @@
     @media (max-width: 640px) {
       .page-header { padding: 0 0.75rem; height: 50px; gap: 8px; }
       .page-header h1 { font-size: 13px; }
+      .guide-icon { width: 20px; height: 20px; font-size: 11px; }
       .page-header > p { display: none; }
       .status-badge { font-size: 10px; padding: 3px 7px; }
       .container {
@@ -535,6 +552,7 @@
       .modal { padding: 1.25rem; }
       .form-grid { grid-template-columns: 1fr; }
       .form-field.full { grid-column: 1; }
+      #tabContentTime { grid-template-columns: 1fr; } /* 時刻入力を縦並びに（iOSの時刻UIがはみ出すため） */
     }
 
     /* LINEログイン・ユーザーエリア */
@@ -578,11 +596,31 @@
 <header class="page-header">
   <div class="logo-mark">♪</div>
   <h1>軽音楽部 部室予約システム</h1>
-  <div class="status-badge" id="statusBadge">
+  <button id="btnGuide" class="guide-icon" title="ご利用について" aria-label="ご利用について">?</button>
+  <div class="status-badge" id="statusBadge" style="display:none">
     <span class="status-dot"></span>
     <span id="statusText">接続中...</span>
   </div>
 </header>
+
+<!-- 操作ガイド（控えめ・困ったときに見る用） -->
+<div class="overlay" id="guideOverlay">
+  <div class="modal guide-modal">
+    <h3>ご利用について</h3>
+    <p class="sub">困ったときはこちらをご確認ください</p>
+    <ul class="guide-list">
+      <li>予約・削除には<strong>LINEログイン</strong>が必要です。</li>
+      <li>予約できるのは<strong>今週分のみ</strong>です（来週以降は閲覧のみ）。</li>
+      <li>週の予約は<strong>毎週日曜0:00</strong>に更新されます。</li>
+      <li>削除できるのは、<strong>自分がログインしたLINEアカウントで作成した予約のみ</strong>です。他の人が作った予約は削除できません。</li>
+      <li>1回の予約時間は<strong>最大190分</strong>までです。</li>
+      <li>「バンド名または個人名」「鍵の返却者」は自由記入のため、本人確認の目的には使われません。</li>
+    </ul>
+    <div class="modal-btns">
+      <button class="btn-sec" id="btnGuideClose">閉じる</button>
+    </div>
+  </div>
+</div>
 
 <main class="container">
   <div class="toolbar">
@@ -602,7 +640,6 @@
       </button>
       <!-- ログイン後（認証後に表示） -->
       <div id="userArea" style="display:none" class="user-area">
-        <span class="user-name" id="userName"></span>
         <button class="btn-logout" id="btnLogout">ログアウト</button>
         <button class="btn-new" id="btnNew" disabled><span>＋</span> 新規予約</button>
       </div>
@@ -772,6 +809,8 @@ function setStatus(state, text) {
   const label = document.getElementById('statusText');
   badge.className = 'status-badge ' + state;
   label.textContent = text;
+  // 「接続中」表示は不要な情報なので、エラー時のみバッジを表示する
+  badge.style.display = (state === 'error') ? '' : 'none';
 }
 
 // ── 日付ユーティリティ ──────────────────────────
@@ -1095,6 +1134,18 @@ document.getElementById('periodSel').addEventListener('change', ()=>{
 document.getElementById('startInput').addEventListener('change', updatePeriodSel);
 document.getElementById('endInput').addEventListener('change', updatePeriodSel);
 document.getElementById('btnCancel').addEventListener('click', closeOverlay);
+
+// ── 操作ガイド（控えめな「？」アイコンから開く） ──
+document.getElementById('btnGuide').addEventListener('click', ()=>{
+  document.getElementById('guideOverlay').classList.add('show');
+});
+document.getElementById('btnGuideClose').addEventListener('click', ()=>{
+  document.getElementById('guideOverlay').classList.remove('show');
+});
+document.getElementById('guideOverlay').addEventListener('click', e=>{
+  if(e.target===document.getElementById('guideOverlay'))
+    document.getElementById('guideOverlay').classList.remove('show');
+});
 document.getElementById('btnClose').addEventListener('click', closeOverlay);
 document.getElementById('overlay').addEventListener('click', e=>{
   if(e.target===document.getElementById('overlay')) closeOverlay();
