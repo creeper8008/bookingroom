@@ -514,6 +514,23 @@
       pointer-events: none; z-index: 0;
       border-top: 2px solid var(--pb-border, #97C459);
     }
+    /* 土曜15:30以降の閉室帯 */
+    .closed-band {
+      position: absolute; left: 0; right: 0;
+      background: repeating-linear-gradient(
+        135deg, rgba(120,120,120,0.07), rgba(120,120,120,0.07) 6px,
+        rgba(120,120,120,0.13) 6px, rgba(120,120,120,0.13) 12px
+      );
+      border-top: 2px solid var(--gray-300);
+      z-index: 5; pointer-events: none;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding-top: 8px;
+    }
+    .closed-label {
+      font-size: 10px; font-weight: 700; color: var(--gray-400);
+      background: var(--surface); padding: 2px 8px; border-radius: var(--r-sm);
+      white-space: nowrap;
+    }
 
     /* ── モバイル対応 ── */
     @media (max-width: 640px) {
@@ -771,6 +788,7 @@
 const PX_PER_MIN = 1.2;
 const DAY_START  = 9 * 60;
 const DAY_END    = 19 * 60;
+const SAT_END    = 15 * 60 + 30; // 土曜日は15:30まで
 const TOTAL_MIN  = DAY_END - DAY_START;
 const TOP_OFFSET = 16;
 const TOTAL_H    = TOTAL_MIN * PX_PER_MIN + TOP_OFFSET;
@@ -905,11 +923,24 @@ function initTimeline() {
       const scrollTop= scrollEl ? scrollEl.scrollTop : 0;
       const y        = e.clientY - rect.top + scrollTop - TOP_OFFSET;
       const snapped  = Math.round((DAY_START + y/PX_PER_MIN)/15)*15;
-      const startMin = Math.max(DAY_START, Math.min(DAY_END-30, snapped));
-      const endMin   = Math.min(DAY_END, startMin+60);
+      const dayEnd   = (d === 'sat') ? SAT_END : DAY_END;
+      const startMin = Math.max(DAY_START, Math.min(dayEnd-30, snapped));
+      const endMin   = Math.min(dayEnd, startMin+60);
       openForm(d, minToTime(startMin), minToTime(endMin));
     });
   });
+
+  // 土曜日：15:30以降は閉室のためグレーアウト表示
+  const satCol = document.getElementById('col-sat');
+  if (satCol) {
+    const closedTop = TOP_OFFSET + (SAT_END - DAY_START) * PX_PER_MIN;
+    const closedH   = TOTAL_H - closedTop;
+    const closedBand = document.createElement('div');
+    closedBand.className = 'closed-band';
+    closedBand.style.cssText = `top:${closedTop}px; height:${closedH}px;`;
+    closedBand.innerHTML = `<span class="closed-label">閉室（15:30〜）</span>`;
+    satCol.appendChild(closedBand);
+  }
 }
 
 // ── 予約ブロック描画 ────────────────────────────
@@ -966,6 +997,9 @@ function openForm(day, startTime, endTime) {
   document.getElementById('bandInput').value   = '';
   document.getElementById('memberInput').value = '';
   document.getElementById('formErr').style.display = 'none';
+
+  // 土曜日は終了時刻の上限を15:30に制限し、超える時限を選択不可にする
+  applySaturdayLimit();
 
   if(startTime && endTime) {
     // タイムラインクリック経由：時刻タブで開く
@@ -1045,6 +1079,7 @@ function updatePeriodSel() {
 
 // ── イベント ────────────────────────────────────
 document.getElementById('btnBook').addEventListener('click', async ()=>{
+  const btnBook = document.getElementById('btnBook');
   const day    = document.getElementById('daySel').value;
   const start  = document.getElementById('startInput').value;
   const end    = document.getElementById('endInput').value;
@@ -1059,16 +1094,21 @@ document.getElementById('btnBook').addEventListener('click', async ()=>{
   }
   if(!start||!end)          { showErr('開始・終了時間を入力してください'); return; }
   const sMin=timeToMin(start), eMin=timeToMin(end);
+  const dayEnd = (day === 'sat') ? SAT_END : DAY_END;
   if(eMin<=sMin)            { showErr('終了時間は開始時間より後にしてください'); return; }
   if(eMin-sMin > 190)       { showErr('一度の予約は最大190分（3時間10分）までです'); return; }
   if(sMin<DAY_START)        { showErr('予約は9:00以降から可能です'); return; }
-  if(eMin>DAY_END)          { showErr('予約は19:00までです'); return; }
+  if(eMin>dayEnd)           { showErr(day==='sat' ? '土曜日は15:30までです' : '予約は19:00までです'); return; }
   if(!band)                 { showErr('バンド名または個人名を入力してください'); return; }
   if(!member)               { showErr('鍵の返却者を入力してください'); return; }
 
   const dKey    = dateKey(getWeekDates(weekOffset)[day]);
   const conflict= checkOverlap(dKey, start, end, null);
   if(conflict){ showErr(`${conflict.startTime}〜${conflict.endTime}「${conflict.band}」と重複しています`); return; }
+
+  // 連打防止：保存完了 or 失敗まで無効化
+  btnBook.disabled = true;
+  btnBook.textContent = '送信中...';
 
   const id = genId();
   const periodLabel = detectPeriodLabel(start, end);
@@ -1079,6 +1119,9 @@ document.getElementById('btnBook').addEventListener('click', async ()=>{
     closeOverlay();
   } catch(e) {
     showErr('保存に失敗しました。接続を確認してください。');
+  } finally {
+    btnBook.disabled = false;
+    btnBook.textContent = '予約する';
   }
 });
 
@@ -1103,6 +1146,7 @@ document.getElementById('btnDeleteCancel').addEventListener('click', ()=>{
 document.getElementById('btnDeleteConfirm').addEventListener('click', async ()=>{
   const input   = document.getElementById('deleteBandInput').value.trim();
   const errEl   = document.getElementById('deleteErr');
+  const btnConf = document.getElementById('btnDeleteConfirm');
   if(!input) {
     errEl.textContent = 'バンド名または個人名を入力してください';
     errEl.style.display = 'block'; return;
@@ -1111,16 +1155,41 @@ document.getElementById('btnDeleteConfirm').addEventListener('click', async ()=>
     errEl.textContent = 'バンド名が一致しません。もう一度確認してください。';
     errEl.style.display = 'block'; return;
   }
+  // 連打防止
+  btnConf.disabled = true;
+  btnConf.textContent = '削除中...';
   try {
     await window._fbDelete(activeViewId);
     closeOverlay();
   } catch(e) {
     errEl.textContent = '削除に失敗しました。接続を確認してください。';
     errEl.style.display = 'block';
+    btnConf.disabled = false;
+    btnConf.textContent = '削除する';
   }
 });
 
-document.getElementById('tabPeriod').addEventListener('click', ()=> switchTab('period'));
+// 曜日が変わったとき、土曜日なら15:30以降を予約不可にする
+function applySaturdayLimit() {
+  const day   = document.getElementById('daySel').value;
+  const isSat = (day === 'sat');
+
+  document.getElementById('endInput').max = isSat ? '15:30' : '19:00';
+
+  // 時限セレクタ：15:30を超える時限は土曜日のみ選択不可にする
+  const periodSel = document.getElementById('periodSel');
+  Array.from(periodSel.options).forEach(opt => {
+    if (!opt.value) return; // プレースホルダーは対象外
+    const p = PERIODS[parseInt(opt.value)];
+    const exceeds = p && timeToMin(p.endTime) > SAT_END;
+    opt.disabled = isSat && exceeds;
+    if (opt.disabled) opt.textContent = opt.textContent.replace(/（土曜は予約不可）$/, '') + '（土曜は予約不可）';
+    else opt.textContent = opt.textContent.replace(/（土曜は予約不可）$/, '');
+  });
+  // 選択中の時限が無効化された場合はリセット
+  if (periodSel.selectedOptions[0]?.disabled) periodSel.value = '';
+}
+document.getElementById('daySel').addEventListener('change', applySaturdayLimit);
 document.getElementById('tabTime').addEventListener('click',   ()=> switchTab('time'));
 document.getElementById('periodSel').addEventListener('change', ()=>{
   const idx = parseInt(document.getElementById('periodSel').value);
