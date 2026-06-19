@@ -1046,6 +1046,11 @@ function closeOverlay() {
   document.getElementById('overlay').classList.remove('show');
   document.getElementById('deleteConfirmArea').style.display = 'none';
   document.getElementById('viewArea').style.display          = 'none';
+  // 保険：閉じるたびにボタンの状態を必ず元に戻す
+  const btnConf = document.getElementById('btnDeleteConfirm');
+  if (btnConf) { btnConf.disabled = false; btnConf.textContent = '削除する'; }
+  const btnBook = document.getElementById('btnBook');
+  if (btnBook) { btnBook.disabled = false; btnBook.textContent = '予約する'; }
   activeViewId   = null;
   activeViewBand = null;
 }
@@ -1131,6 +1136,11 @@ document.getElementById('btnDelete').addEventListener('click', ()=>{
     `「<strong>${escHtml(activeViewBand)}</strong>」の予約を削除します。<br>バンド名または個人名をそのまま入力して確定してください。`;
   document.getElementById('deleteBandInput').value = '';
   document.getElementById('deleteErr').style.display = 'none';
+  // 前回の削除処理でボタンが「削除中...」のまま残っている可能性があるため、
+  // 確認画面を開くたびに必ずリセットする
+  const btnConf = document.getElementById('btnDeleteConfirm');
+  btnConf.disabled = false;
+  btnConf.textContent = '削除する';
   document.getElementById('viewArea').style.display          = 'none';
   document.getElementById('deleteConfirmArea').style.display = '';
   setTimeout(()=>document.getElementById('deleteBandInput').focus(), 60);
